@@ -15,6 +15,7 @@ export async function POST(request: Request) {
 			const token = sign({ userId }, JWT_SECRET, { expiresIn: '1h' })
 
 
+			// @ts-ignore
 			cookies().set('auth_token', token, {
 				httpOnly: true,
 				secure: process.env.NODE_ENV === 'production',

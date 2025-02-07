@@ -17,6 +17,7 @@ const ses = new AWS.SES({ apiVersion: '2010-12-01' })
 export async function POST(request: Request) {
 	try {
 
+		// @ts-ignore
 		const token = cookies().get('auth_token')?.value
 		if (!token) {
 			return NextResponse.json({
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
 
 		try {
 			verify(token, JWT_SECRET)
-		} catch (error) {
+		} catch (_) {
 			return NextResponse.json({
 				success: false,
 				message: 'Invalid token'

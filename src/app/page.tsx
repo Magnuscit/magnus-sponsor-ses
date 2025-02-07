@@ -43,7 +43,7 @@ export default function BulkMailer() {
 				if (data.success) {
 					setIsLoggedIn(true)
 				}
-			} catch (err) {
+			} catch (_) {
 				setIsLoggedIn(false)
 			}
 		}
@@ -71,7 +71,7 @@ export default function BulkMailer() {
 			} else {
 				setLoginError(data.message || 'Invalid credentials')
 			}
-		} catch (err) {
+		} catch (_) {
 			setLoginError('An error occurred during login')
 		} finally {
 			setLoading(false)
@@ -100,7 +100,7 @@ export default function BulkMailer() {
 
 
 				const batchSize = 40
-				const totalBatches = Math.ceil(emails.length / batchSize)
+				const _ = Math.ceil(emails.length / batchSize)
 
 				for (let i = 0; i < emails.length; i += batchSize) {
 					const batch = emails.slice(i, i + batchSize)

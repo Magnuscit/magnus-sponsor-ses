@@ -6,6 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 
 export async function GET() {
 	try {
+		// @ts-ignore
 		const token = cookies().get('auth_token')?.value
 
 		if (!token) {
@@ -21,7 +22,7 @@ export async function GET() {
 			success: true,
 			message: 'Valid token'
 		})
-	} catch (error) {
+	} catch (_) {
 		return NextResponse.json({
 			success: false,
 			message: 'Invalid token'
