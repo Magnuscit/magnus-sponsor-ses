@@ -89,9 +89,13 @@ export default function BulkMailer() {
     parse(file, {
       skipEmptyLines: true,
       complete: async function (results) {
-        const emails = (results.data as Array<Array<string>>).map((row) =>
-          row.filter((cell) => !!cell),
-        );
+        const uniqueEmails = new Set();
+        const emails = (results.data as Array<Array<string>>)
+          .map((row) => row.filter((cell) => !!cell))
+          .filter((row) => {
+            const email = row[0];
+            return uniqueEmails.has(email) ? false : uniqueEmails.add(email);
+          });
 
         const batchSize = 40;
         const _ = Math.ceil(emails.length / batchSize);

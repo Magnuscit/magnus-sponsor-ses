@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import * as AWS from "aws-sdk";
 import { cookies } from "next/headers";
 import { verify } from "jsonwebtoken";
+import { promises as fs } from "fs";
+import path from "path";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
@@ -11,12 +13,14 @@ AWS.config.update({
   region: process.env.AWS_REGION,
 });
 
+const ATTACHMENT_NAME = "brochure.png";
+
 const ses = new AWS.SES({ apiVersion: "2010-12-01" });
 
 export async function POST(request: Request) {
   try {
     // @ts-ignore
-    const token = cookies().get("auth_token")?.value;
+    const token = (await cookies()).get("auth_token")?.value;
     if (!token) {
       return NextResponse.json(
         {
@@ -41,6 +45,10 @@ export async function POST(request: Request) {
 
     const { subject, body, recipients } = await request.json();
 
+    const filePath = path.join(process.cwd(), "public", ATTACHMENT_NAME);
+    const fileBuffer = await fs.readFile(filePath);
+    const attachmentBase64 = fileBuffer.toString("base64");
+
     const emailPromises = recipients.map(async (values: string[]) => {
       let modifiedBody = body;
       values.forEach((value, idx) => {
@@ -48,22 +56,20 @@ export async function POST(request: Request) {
         modifiedBody = modifiedBody.replace(placeholder, value);
       });
 
-      const params = {
-        Source: process.env.SES_VERIFIED_EMAIL!,
-        Destination: {
-          ToAddresses: [values[0]],
-        },
-        Message: {
-          Subject: {
-            Data: subject,
-          },
-          Body: {
-            Html: {
-              Data: `
-<html>
+      const plainText = `Hello,
+
+${modifiedBody}
+
+Best regards,
+Team Magnus
+CSE-AIML
+Chennai Institute of Technology`;
+
+      const htmlContent = `<html>
   <head>
     <title>${subject}</title>
   </head>
+  <body>
    <div style="box-sizing: border-box; background: gray; padding: 3%;">
       <table id="content" colspan="4" style="background: white; width: 100%">
          <tr style="height: 15vh">
@@ -112,10 +118,10 @@ export async function POST(request: Request) {
                <p style="margin: 4px"><b>Socials</b></p>
                <div style="display: flex; justify-content: left; margin: 4px; text-align: justify;">
                   <a href="https://www.linkedin.com/in/magnus-cit-7158a2287">
-                  <img alt="F" src="https://www.shareicon.net/data/2015/09/28/108616_media_512x512.png" style="width: 15px; height: 15px; padding: 2px"/>
+                    <img alt="LinkedIn" src="https://www.shareicon.net/data/2015/09/28/108616_media_512x512.png" style="width: 15px; height: 15px; padding: 2px"/>
                   </a>
                   <a href="https://www.instagram.com/magnus.cit">
-                  <img alt="I" src="https://raw.githubusercontent.com/cittakshashila/backend/ses/docs/asserts/insta.png" style="width: 15px; height: 15px; padding: 2px"/>
+                    <img alt="Instagram" src="https://raw.githubusercontent.com/cittakshashila/backend/ses/docs/asserts/insta.png" style="width: 15px; height: 15px; padding: 2px"/>
                   </a>
                </div>
             </td>
@@ -129,18 +135,56 @@ export async function POST(request: Request) {
          </tr>
       </table>
    </div>
-</html>
-              `,
-            },
-          },
-        },
+  </body>
+</html>`;
+
+      const boundaryMixed = "NextPartMixedBoundary";
+      const boundaryAlternative = "NextPartAlternativeBoundary";
+
+      const rawEmail = [
+        `From: ${process.env.SES_VERIFIED_EMAIL}`,
+        `To: ${values[0]}`,
+        `Subject: ${subject}`,
+        `MIME-Version: 1.0`,
+        `Content-Type: multipart/mixed; boundary="${boundaryMixed}"`,
+        ``,
+        `--${boundaryMixed}`,
+        `Content-Type: multipart/alternative; boundary="${boundaryAlternative}"`,
+        ``,
+        `--${boundaryAlternative}`,
+        `Content-Type: text/plain; charset="UTF-8"`,
+        `Content-Transfer-Encoding: 7bit`,
+        ``,
+        plainText,
+        ``,
+        `--${boundaryAlternative}`,
+        `Content-Type: text/html; charset="UTF-8"`,
+        `Content-Transfer-Encoding: 7bit`,
+        ``,
+        htmlContent,
+        ``,
+        `--${boundaryAlternative}--`,
+        ``,
+        `--${boundaryMixed}`,
+        `Content-Type: image/png; name="${ATTACHMENT_NAME}"`,
+        `Content-Disposition: attachment; filename="${ATTACHMENT_NAME}"`,
+        `Content-Transfer-Encoding: base64`,
+        ``,
+        attachmentBase64,
+        ``,
+        `--${boundaryMixed}--`,
+      ].join("\n");
+
+      const params = {
+        Source: process.env.SES_VERIFIED_EMAIL,
+        Destinations: [values[0]],
+        RawMessage: { Data: rawEmail },
       };
 
-      return ses.sendEmail(params).promise();
+      return ses.sendRawEmail(params).promise();
     });
 
-    await Promise.all(emailPromises);
-
+    await Promise.allSettled(emailPromises);
     return NextResponse.json({
       success: true,
       message: "Emails sent successfully",
